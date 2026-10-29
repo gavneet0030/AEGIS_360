@@ -1,0 +1,32 @@
+services:
+  aegis360:
+    build: .
+    image: aegis360:local
+    restart: unless-stopped
+    ports:
+      - "8501:8501"
+    environment:
+      AEGIS_ENV: production
+      AEGIS_LOG_LEVEL: INFO
+      AEGIS_DATA_DIR: /var/data
+      AEGIS_MAX_UPLOAD_MB: "25"
+      AEGIS_ACCESS_PASSWORD: ${AEGIS_ACCESS_PASSWORD:?Set AEGIS_ACCESS_PASSWORD in your shell or .env file}
+      PORT: "8501"
+    volumes:
+      - aegis-data:/var/data
+    read_only: true
+    tmpfs:
+      - /tmp:size=128m,mode=1777
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8501/_stcore/health', timeout=3)"]
+      interval: 30s
+      timeout: 5s
+      start_period: 25s
+      retries: 3
+
+volumes:
+  aegis-data:

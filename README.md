@@ -96,7 +96,8 @@ The source catalog is [config/sources.toml](config/sources.toml). The World Bank
 - SQLite history is local to one service instance; the Render disk configuration does not support horizontal scaling.
 - Forecasting is limited to simple naive/seasonal-naive baselines. No confidence interval is claimed.
 - Financial and risk metrics are only computed from supplied fields; business semantics require analyst validation.
-- Docker build and hosted deployment must be verified in CI/Render; the current local Docker Engine is not accessible from this workspace.
+- The Docker image build and health endpoint passed in GitHub Actions; broader Compose workflows (upload, analytics, Excel export, SQLite restart persistence, and container hardening checks) still need a Docker host with Engine access. The local Docker Engine is not accessible from this workspace.
+- The release candidate is on `codex/phase-3-final-release` with [PR #1](https://github.com/gavneet0030/AEGIS_360/pull/1); the PR checks passed. No Render deployment URL is verified, and live OIDC is not configured. See the [release readiness report](docs/release-readiness.md).
 
 ## Portfolio description
 

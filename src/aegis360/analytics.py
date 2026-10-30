@@ -202,8 +202,9 @@ def anomaly_table(
     """Flag observations at |robust z| >= 3; flags are review signals only."""
     result = frame.copy()
     values = _numeric(result[value_column])
-    median = values.median()
-    mad = (values - median).abs().median()
+    finite_values = values.dropna()
+    median = finite_values.median() if not finite_values.empty else np.nan
+    mad = (finite_values - median).abs().median() if not finite_values.empty else np.nan
     if pd.isna(mad) or mad == 0 or pd.isna(median):
         result["robust_z"] = np.nan
         result["is_anomaly"] = False

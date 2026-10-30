@@ -23,8 +23,10 @@ The local application has a passing 42-test regression suite, lint and format ch
 | GitHub CLI authentication | BLOCKED | `gh auth status` reports no logged-in host. Default Schannel transport fails with `SEC_E_NO_CREDENTIALS`; anonymous read access works with `git -c http.sslBackend=openssl -c credential.helper= fetch origin`. |
 | Remote release branch, pull request, and merge | BLOCKED | Local candidate is prepared, but no remote branch or PR exists. GitHub connector branch creation returned HTTP 403 `Resource not accessible by integration`; GitHub CLI has no write credentials. No remote write was made. |
 | Secret/private-data review before staging | PASS | Reviewed tracked project files and scanned the staged release-document changes for common credential/private-key patterns; zero matches. Those changes were committed locally only; no remote write was made. |
-| Full regression suite | PASS | On the reconciled local release branch, `python -m pytest -q` reported 42 passed in 62.56 seconds. |
-| Ruff lint and formatting | PASS | On the reconciled local release branch, `python -m ruff check .` and `python -m ruff format --check .` passed; 21 Python files were already formatted. |
+| Full regression suite | PASS | In the isolated Python 3.13.9 venv matching the production lock, `pytest -q` reported 42 passed in 48.37 seconds with no warnings. |
+| Production runtime lock | PASS | All 45 exact runtime pins matched installed package metadata; `pip check` found no broken requirements. |
+| Ruff lint and formatting | PASS | With Ruff 0.12.0 in the isolated venv, `ruff check .` passed and `ruff format --check .` reported 21 Python files already formatted. |
+| Null-only anomaly handling | PASS | Fixed median/MAD calculation for empty finite series; the regression assertion now treats RuntimeWarnings as errors and passes. |
 | Runtime dependency vulnerability audit | PASS | Exact 45-package production runtime audit reported no known vulnerabilities after dependency updates. |
 | Local application/health check | PASS | Streamlit 1.66.1 with development mode disabled served `/_stcore/health` and `/` with HTTP 200. |
 | Docker image and Compose container verification | BLOCKED | Docker context is `default` at `npipe:////./pipe/docker_engine`; API access returned permission denied. No image/container was built or started. |
@@ -38,9 +40,10 @@ The local application has a passing 42-test regression suite, lint and format ch
 
 ## Verified local checks
 
-- `python -m pytest -q` on the reconciled local release branch: **42 passed in 62.56 seconds** (pytest 8.4.2).
-- `python -m ruff check .`: passed; `python -m ruff format --check .`: 21 files already formatted.
-- `pip check` and `python -m scripts.doctor`: passed.
+- Isolated Python 3.13.9 venv: all **45 production pins** matched exactly; Streamlit 1.66.1; pytest 8.4.2; Ruff 0.12.0.
+- `pip check`: no broken requirements; `scripts/doctor.py`: passed with writable SQLite metadata storage.
+- `pytest -q`: **42 passed in 48.37 seconds with no warnings** after adding a warning-free null-only anomaly regression case.
+- `ruff check .`: passed; `ruff format --check .`: 21 files already formatted.
 - `pip-audit` on the exact pinned production runtime set: **45 packages, no known vulnerabilities**.
 - TOML/YAML parsing and `docker compose config --quiet`: passed. This validates Compose syntax, not container execution.
 - Local Streamlit health and dashboard routes: HTTP 200.

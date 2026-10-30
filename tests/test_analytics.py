@@ -1,3 +1,5 @@
+import warnings
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -70,7 +72,9 @@ def test_anomaly_flags_extreme_value_and_handles_constant_or_null_series():
     assert result.iloc[-1]["is_anomaly"]
     constant = anomaly_table(pd.DataFrame({"value": [2, 2, 2]}), "value")
     assert not constant["is_anomaly"].any()
-    missing = anomaly_table(pd.DataFrame({"value": [None, np.inf]}), "value")
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", RuntimeWarning)
+        missing = anomaly_table(pd.DataFrame({"value": [None, np.inf]}), "value")
     assert not missing["is_anomaly"].any()
 
 

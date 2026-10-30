@@ -18,11 +18,14 @@
 |---|---|---|
 | Local repository state | PASS | `codex/phase-3-final-release` contains the local application history and remote `main` history. The reconciliation merge completed without conflicts and preserved the remote license. |
 | GitHub remote inspection | PASS | Read-only `ls-remote` with OpenSSL transport override confirmed remote `main` at `1a99a87513f330002bc0f7200c23b28865106178`; remote fetch completed. |
-| GitHub CLI authentication | BLOCKED | `gh auth status` reports no logged-in host. Default Schannel transport failed with `SEC_E_NO_CREDENTIALS`; the per-command OpenSSL override permits anonymous reads only. |
+| GitHub CLI authentication | BLOCKED | `gh auth status` reports no logged-in host. Two web device-login attempts ended with `expired_token` before a session was established. Default Schannel transport fails with `SEC_E_NO_CREDENTIALS`; the per-command OpenSSL override permits anonymous reads only. |
 | Remote release branch / PR | BLOCKED | Connector branch creation returned HTTP 403 `Resource not accessible by integration`, and CLI write credentials are absent. No remote branch, push, PR, CI run, or merge occurred. Remote `main` was not altered. |
 | Staged secret scan | PASS | Reviewed tracked project files and scanned the staged release-document changes for common credential/private-key patterns; zero findings. Changes were committed locally only. |
-| Regression suite | PASS | On the reconciled release branch, **42 passed in 62.56 seconds** with pytest 8.4.2. |
-| Ruff | PASS | On the reconciled release branch, `ruff check .` passed and `ruff format --check .` reported 21 files already formatted. |
+| Production runtime lock | PASS | Isolated Python 3.13.9 venv matched all 45 exact production pins; `pip check` found no broken requirements. |
+| Doctor | PASS | `scripts/doctor.py` passed under the lock, confirming Streamlit 1.66.1 and writable SQLite metadata storage. |
+| Regression suite | PASS | On the reconciled release branch in the isolated locked venv, **42 passed in 48.37 seconds with no warnings**. |
+| Ruff | PASS | With Ruff 0.12.0 in the isolated venv, `ruff check .` passed and `ruff format --check .` reported 21 files already formatted. |
+| Null-only anomaly handling | PASS | The empty finite-series path now avoids NumPy runtime warnings; its regression test treats such warnings as errors and passes. |
 | Runtime audit | PASS | Exact 45-package pinned runtime audit: no known vulnerabilities. |
 | Local app health | PASS | Local Streamlit 1.66.1, development mode disabled: `/_stcore/health` and `/` both returned HTTP 200. |
 | Docker context | PASS | Context is `default`, endpoint `npipe:////./pipe/docker_engine`. |
@@ -48,7 +51,7 @@
 - **OIDC:** not live verified
 - **Render:** not deployed
 - **Deployment URL:** none
-- **Final test count:** 42 passing in 62.56 seconds on the local Phase 3 release branch
+- **Final test count:** 42 passing in 48.37 seconds, warning-free, in the isolated Python 3.13.9 environment matching the 45-pin production lock
 
 ## Remaining limitations
 

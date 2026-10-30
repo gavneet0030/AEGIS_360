@@ -1,46 +1,51 @@
-# Release readiness
+# AEGIS 360 release readiness
 
-**Review date:** 2026-10-30  
-**Local release commit before Phase 2:** `4775b3b` (`Build production-ready AEGIS 360 MVP`)  
+**Review date:** 2026-10-30
+
+**Local branch:** `codex/phase-2-production-readiness`
+
+**Local baseline commit:** `9d5aee0ed5aeac11aedbe70723f4a2dddc4bebb2`
+
 **GitHub repository:** [gavneet0030/AEGIS_360](https://github.com/gavneet0030/AEGIS_360)
 
-## Release evidence
+## Release decision
 
-Track the verified local test suite, lint/format checks, dependency audit, doctor, benchmark, Docker build, live World Bank request, remote branch, CI, and deployment separately. Do not substitute configured workflows or deployment files for completed remote runs.
+The local application has a passing 42-test regression suite, lint and format checks, a clean 45-package runtime vulnerability audit, and a successful local Streamlit health check. The project is **not approved as a live production release**: no release branch or pull request could be created, Docker Engine was inaccessible, no real OIDC provider was configured, and no Render service was connected or deployed. Do not use the shared-password mode for confidential organizational data or treat this build as security-certified.
 
-## Phase 2 acceptance criteria
+## Final acceptance table
 
-| # | Criterion | Status | Evidence / remaining work |
-|---:|---|---|---|
-| 1 | Documented application features work | PARTIAL | 42 tests pass on Streamlit 1.66.1 and PyArrow 26.0.0; local Streamlit health/root return 200. Production-user workflow and OIDC still require live-provider verification. |
-| 2 | Complete regression suite passes | PASS | `python -m pytest -q` with the production package overlay: 42 passed in 139.90 seconds. |
-| 3 | Lint and formatting pass | PASS | `ruff check .` and `ruff format --check .` pass after formatting all tracked/new Python files. |
-| 4 | Dependency audit completed and findings reviewed | PASS | The first direct scan found six advisory records across Streamlit and PyArrow; the expanded scan found 105 more across six transitive packages. Eight runtime package versions were upgraded; the final 45-package pinned audit reported no known vulnerabilities. See [security review](security-review.md). |
-| 5 | Upload security is tested | PARTIAL | Parser tests cover sizes, signatures, duplicates, malformed inputs, and formats; production proxy/resource-limit behavior is not exercised. |
-| 6 | Export security is tested | PASS | Workbook values/layout and formula-like cell/header escaping are asserted. |
-| 7 | Container image actually built and tested | BLOCKED | Docker Engine named pipe is inaccessible in the current session. |
-| 8 | Health checks work | PARTIAL | Streamlit 1.66.1 local `/_stcore/health` returned HTTP 200 and Compose config parses; container health remains unverified because Docker Engine is unavailable. |
-| 9 | CI is green | BLOCKED | Workflow files are configured; no authenticated remote branch/PR is available to trigger and inspect CI. |
-| 10 | GitHub release is synchronized | BLOCKED | GitHub connector denied branch creation and local Git has no credentials. No push, PR, merge, or tag was made. |
-| 11 | External data integration is verified | PASS | Mocked adapter suite passes; bounded live World Bank request returned U.S. population values for 2021–2022. |
-| 12 | Authentication limitations are resolved | PARTIAL | OIDC path and allowlist are implemented; provider credentials, verified claims, MFA policy, role model, revocation/session tests, and user access approval remain. |
-| 13 | Deployment is live and verified if hosting is available | BLOCKED | No Render account/service is connected. The blueprint uses a paid plan and persistent disk; no service or cost was created. |
-| 14 | Documentation matches implementation | PASS | README, operations runbook, security review, architecture, deployment, and readiness docs reflect the implemented controls and verification gaps. |
+| Requirement | Status | Evidence / remaining work |
+|---|---|---|
+| Project root, branch, commit, and worktree inspected | PASS | Root is `outputs/AEGIS_360`; branch `codex/phase-2-production-readiness`; baseline `9d5aee0`; clean at start of Phase 3. |
+| GitHub repository and remote inspected | PASS | Remote points to the requested repository. Read access shows remote `main` at `1a99a87513f330002bc0f7200c23b28865106178` with its initial license commit. |
+| GitHub release branch, pull request, and merge | BLOCKED | `gh auth status` reports no logged-in host; fetch fails with `SEC_E_NO_CREDENTIALS`; GitHub connector branch creation returned HTTP 403 `Resource not accessible by integration`. No remote write was made. |
+| Secret/private-data review before staging | PASS | Reviewed tracked project files and scanned for common credential/private-key patterns; zero matches. No release files were staged or pushed during the blocked remote operation. |
+| Full regression suite | PASS | 42 passed in 139.90 seconds on the production dependency overlay. |
+| Ruff lint and formatting | PASS | `ruff check .` and `ruff format --check .` passed. |
+| Runtime dependency vulnerability audit | PASS | Exact 45-package production runtime audit reported no known vulnerabilities after dependency updates. |
+| Local application/health check | PASS | Streamlit 1.66.1 with development mode disabled served `/_stcore/health` and `/` with HTTP 200. |
+| Docker image and Compose container verification | BLOCKED | Docker context is `default` at `npipe:////./pipe/docker_engine`; API access returned permission denied. No image/container was built or started. |
+| Container workflows and persistence | BLOCKED | Upload, analytics, Excel export, SQLite persistence/restart, logs, non-root, read-only filesystem, and clean stop were not verified in a running container. |
+| GitHub Actions / CI | BLOCKED | No branch or PR could be created to trigger the repository workflow. No current check run was verified. |
+| Live World Bank integration | PASS | Bounded live request returned two U.S. population observations for 2021–2022; adapter tests use mocked responses. |
+| Live OIDC authentication | BLOCKED | No real provider configuration or credentials are present. Login, callback/state/nonce, expiration, logout, protected-route, and provider role checks have not been verified against a live provider. |
+| Render configuration review | PASS | `render.yaml` specifies a Docker web service, `starter` plan, 1 GB persistent disk, health path, production environment, and generated password. This is configuration review only. |
+| Render deployment and public URL | BLOCKED | No Render API key/CLI/service or connected deployment was available. No paid service was created; no live URL exists. |
+| Documentation and release records | PASS | README and the Phase 3 deployment, readiness, and verification documents describe current controls and blockers. |
 
-## Current local verification
+## Verified local checks
 
-- Test suite: `python -m pytest -q` with the pinned production overlay — 42 passed in 139.90 seconds.
-- Ruff lint/format: pass.
-- `pip check` and `python -m scripts.doctor`: pass.
-- `pip-audit`: pass on all 45 pinned runtime packages; no known vulnerabilities after upgrading eight affected packages.
-- Synthetic benchmark: 1k/10k/100k results are in [performance benchmarks](performance-benchmarks.md); the 100k workbook export took 65.4 seconds.
-- TOML/YAML parse and `docker compose config --quiet`: pass.
-- Local Streamlit 1.66.1 with production development mode disabled: `/_stcore/health` and `/` returned HTTP 200.
-- Live World Bank result: two U.S. population observations for 2021 and 2022.
-- Docker image/runtime: not verified; engine access denied.
-- GitHub: remote `main` contains the initial license commit; no write credential is available in this session.
-- Hosting: no connected Render workspace/service; no public URL.
+- `python -m pytest -q` on the production package overlay: **42 passed in 139.90 seconds**.
+- Ruff lint and format checks: passed.
+- `pip check` and `python -m scripts.doctor`: passed.
+- `pip-audit` on the exact pinned production runtime set: **45 packages, no known vulnerabilities**.
+- TOML/YAML parsing and `docker compose config --quiet`: passed. This validates Compose syntax, not container execution.
+- Local Streamlit health and dashboard routes: HTTP 200.
+- Live World Bank request: two observations for 2021–2022.
+- Synthetic 100k-row workbook benchmark: approximately 65.4 seconds; details in [performance benchmarks](performance-benchmarks.md).
 
-## Safe synchronization commands (after credentials are configured)
+## Release handoff
 
-The local project and remote starter history must be compared before publication. Do not force-push. First use a credentialed clone/fetch to inspect `origin/main` and its license; create a fresh release branch from that remote base, copy the reviewed project files into that branch while preserving the existing license, inspect `git diff`, run all checks, and push only that branch. Open a draft PR, wait for CI, and request review. Create a release tag only after the PR is approved and merged.
+After GitHub write access is restored, fetch the repository and inspect its history again. Create a release branch from the actual remote `main`, preserve the existing license/history, apply the reviewed local project without force-pushing, scan staged content, rerun the full checks, push the branch, open a PR, and verify its CI. Merge only after required checks and review pass. The existing local branch is not synchronized with remote `main` and should not be pushed directly without that reconciliation.
+
+See [final verification](final-verification.md) for the Phase 3 environment results and [production deployment](production-deployment.md) for the remaining gated deployment procedure.

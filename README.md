@@ -2,7 +2,7 @@
 
 AEGIS 360 is a local-first analyst workbench for validating tabular data, profiling data quality, comparing observed periods, reviewing statistical outliers, testing baseline forecasts and analyst scenarios, and creating a methodology-aware Excel report.
 
-**Current readiness:** runnable local application and container/deployment preparation are implemented. No public deployment has been created. For confidential or internet-facing business use, put a managed identity-aware proxy in front of the app and complete an organization-specific security review. The built-in shared-password gate is not SSO, RBAC, or a compliance control.
+**Current readiness:** the local application and container/deployment preparation are implemented, and the latest recorded regression run passed 42 tests. A GitHub release, Docker image/container run, live OIDC verification, and Render deployment have not been completed because the required remote write access, Docker Engine access, provider credentials, and hosting account were unavailable. There is no live deployment URL. Do not use the shared-password gate for confidential business data; it is not SSO, RBAC, or a compliance control. See [final verification](docs/final-verification.md), [release readiness](docs/release-readiness.md), and the [production deployment runbook](docs/production-deployment.md) for exact evidence and remaining gates.
 
 ## Capabilities
 
@@ -81,7 +81,7 @@ To deploy, connect the verified GitHub repository to Render, create a Blueprint 
 
 For OIDC, install the `auth` extra (included in the Docker image), register the actual app URL plus `/oauth2callback` with your provider, upload a real secrets file based on [.streamlit/secrets.toml.example](.streamlit/secrets.toml.example) through the hosting provider's secret-file facility, and set `AEGIS_AUTH_MODE=oidc` with at least one exact allowed email or domain. The container copies the mounted secret file to its temporary home with owner-only permissions. Configure the provider to enforce MFA if required. A domain allowlist is an access rule, not role-based authorization. Keep password mode until the OIDC callback, sign-in, denied-user, sign-out, and deployment flows have been verified with your actual provider.
 
-See [deployment instructions](docs/deployment.md), [operations runbook](docs/runbook.md), and [threat model](docs/threat-model.md).
+See [deployment instructions](docs/deployment.md), [production deployment runbook](docs/production-deployment.md), [operations runbook](docs/runbook.md), [release readiness](docs/release-readiness.md), [final verification](docs/final-verification.md), and [threat model](docs/threat-model.md).
 
 ## Data and persistence boundary
 

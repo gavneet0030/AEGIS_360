@@ -2,7 +2,7 @@
 
 ## Current release state
 
-The candidate is available on [`codex/phase-3-final-release`](https://github.com/gavneet0030/AEGIS_360/tree/codex/phase-3-final-release) at `a271d4abc96cf2ba75e063e563ccda007a9304d3`, with [PR #1](https://github.com/gavneet0030/AEGIS_360/pull/1) open into `main`. All five checks passed on that head, including a Docker image build and health smoke. The PR is not merged. The CI container check does not cover Compose, uploads, exports, or persistence.
+The candidate is available on [`codex/phase-3-final-release`](https://github.com/gavneet0030/AEGIS_360/tree/codex/phase-3-final-release) at `a271d4abc96cf2ba75e063e563ccda007a9304d3`, with [PR #1](https://github.com/gavneet0030/AEGIS_360/pull/1) open into `main`. All five checks passed on that head, including a Docker image build and health smoke. PR #1 is merged. The CI container check does not cover Compose, uploads, exports, or persistence.
 
 No cloud service has been deployed. The existing `render.yaml` is a Blueprint, not evidence of a live service. It defines a Docker web service on Render's `starter` plan, a 1 GB persistent disk, a health check, and a generated shared password. No Render service or deployment URL was verified. The plan and disk can incur cost; review current pricing and obtain explicit cost approval before provisioning.
 

@@ -18,7 +18,7 @@
 |---|---|---|
 | Local repository state | PASS | `codex/phase-3-final-release` contains the local application history and remote `main` history. The reconciliation merge completed without conflicts and preserved the remote license. |
 | GitHub remote inspection | PASS | Read-only `ls-remote` with OpenSSL transport override confirmed remote `main` at `1a99a87513f330002bc0f7200c23b28865106178`; remote fetch completed. |
-| GitHub CLI authentication | BLOCKED | `gh auth status` reports no logged-in host. Two prior web device-login attempts ended with `expired_token`; a third device flow is waiting for account-owner approval. Default Schannel transport fails with `SEC_E_NO_CREDENTIALS`; the per-command OpenSSL override permits anonymous reads only. |
+| GitHub CLI authentication | BLOCKED | `gh auth status` reports no logged-in host. Three web device-login attempts ended with `expired_token` before authentication. Default Schannel transport fails with `SEC_E_NO_CREDENTIALS`; the per-command OpenSSL override permits anonymous reads only. |
 | Remote release branch / PR | BLOCKED | Connector branch creation returned HTTP 403 `Resource not accessible by integration`, and CLI write credentials are absent. No remote branch, push, PR, CI run, or merge occurred. Remote `main` was not altered. |
 | Staged secret scan | PASS | Reviewed tracked project files and scanned staged README, docs, source, and test changes for common credential/private-key patterns; zero findings. Changes were committed locally only. |
 | Production runtime lock | PASS | Isolated Python 3.13.9 venv matched all 45 exact production pins; `pip check` found no broken requirements. |

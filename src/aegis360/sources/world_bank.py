@@ -104,20 +104,31 @@ def fetch_indicator(
         if page >= page_count:
             break
 
+    if not records:
+        raise ValueError("World Bank returned no observations for the selected request.")
+
     normalized = []
     for record in records:
         if not isinstance(record, dict):
             raise ValueError("World Bank observation has an invalid shape.")
         country_info = record.get("country") or {}
         indicator_info = record.get("indicator") or {}
+        if not isinstance(country_info, dict) or not isinstance(indicator_info, dict):
+            raise ValueError("World Bank observation has invalid country or indicator metadata.")
+        try:
+            year = int(record.get("date"))
+        except (TypeError, ValueError) as exc:
+            raise ValueError("World Bank observation has an invalid year.") from exc
+        if not start_year <= year <= end_year:
+            raise ValueError("World Bank observation year falls outside the requested range.")
         normalized.append(
             {
                 "country_code": record.get("countryiso3code") or country,
                 "country": country_info.get("value"),
                 "indicator_code": indicator_info.get("id") or indicator,
                 "indicator": indicator_info.get("value"),
-                "year": pd.to_numeric(record.get("date"), errors="coerce"),
-                "period": pd.to_datetime(f"{record.get('date')}-01-01", errors="coerce"),
+                "year": year,
+                "period": pd.to_datetime(f"{year}-01-01", errors="coerce"),
                 "value": pd.to_numeric(record.get("value"), errors="coerce"),
                 "unit": record.get("unit"),
                 "observation_status": record.get("obs_status"),
@@ -125,11 +136,7 @@ def fetch_indicator(
             }
         )
     frame = pd.DataFrame(normalized)
-    if frame.empty:
-        raise ValueError("World Bank returned no observations for the selected request.")
-    frame = frame.dropna(subset=["year"]).sort_values("year").reset_index(drop=True)
-    if frame.empty:
-        raise ValueError("World Bank response contained no valid observation years.")
+    frame = frame.sort_values("year").reset_index(drop=True)
     frame["year"] = frame["year"].astype(int)
     frame.attrs["source_id"] = "world_bank_indicators_v2"
     frame.attrs["source_url"] = endpoint

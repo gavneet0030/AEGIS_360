@@ -28,6 +28,12 @@ def main() -> int:
         except importlib.metadata.PackageNotFoundError:
             print(f"FAIL missing dependency: {distribution}")
             return 1
+    if settings.auth_mode == "oidc":
+        try:
+            print(f"OK Authlib: {importlib.metadata.version('Authlib')}")
+        except importlib.metadata.PackageNotFoundError:
+            print("FAIL OIDC mode requires the optional auth extra (Authlib)")
+            return 1
     try:
         settings.data_dir.mkdir(parents=True, exist_ok=True)
         with tempfile.NamedTemporaryFile(
@@ -35,7 +41,9 @@ def main() -> int:
         ):
             pass
         with sqlite3.connect(settings.database_path, timeout=5) as connection:
-            connection.execute("PRAGMA quick_check").fetchone()
+            check = connection.execute("PRAGMA quick_check").fetchone()
+            if check != ("ok",):
+                raise sqlite3.DatabaseError("SQLite quick_check did not return ok")
         print(f"OK writable metadata directory: {settings.data_dir}")
     except (OSError, sqlite3.Error) as exc:
         print(f"FAIL metadata storage: {type(exc).__name__}")

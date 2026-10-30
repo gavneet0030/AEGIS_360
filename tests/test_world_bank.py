@@ -83,3 +83,39 @@ def test_world_bank_adapter_rejects_bad_response_and_page_overflow():
         fetch_indicator("IN", "SP.POP.TOTL", 2020, 2021, transport=lambda *_: b"{")
     with pytest.raises(ValueError, match="page limit"):
         fetch_indicator("IN", "SP.POP.TOTL", 2020, 2021, transport=lambda *_: response([], pages=9))
+
+
+def test_world_bank_adapter_handles_empty_and_malformed_observations():
+    with pytest.raises(ValueError, match="no observations"):
+        fetch_indicator("IN", "SP.POP.TOTL", 2020, 2021, transport=lambda *_: response([]))
+
+    malformed_country = observation(2021, 1)
+    malformed_country["country"] = "India"
+    with pytest.raises(ValueError, match="country or indicator metadata"):
+        fetch_indicator(
+            "IN",
+            "SP.POP.TOTL",
+            2020,
+            2021,
+            transport=lambda *_: response([malformed_country]),
+        )
+
+    out_of_range = observation(2022, 1)
+    with pytest.raises(ValueError, match="outside the requested range"):
+        fetch_indicator(
+            "IN", "SP.POP.TOTL", 2020, 2021, transport=lambda *_: response([out_of_range])
+        )
+
+
+def test_world_bank_adapter_stops_after_bounded_transient_retries():
+    attempts = []
+    sleeps = []
+
+    def transport(url, timeout):
+        attempts.append((url, timeout))
+        raise URLError("offline")
+
+    with pytest.raises(ValueError, match="bounded retries"):
+        fetch_indicator("IN", "SP.POP.TOTL", 2020, 2021, transport=transport, sleeper=sleeps.append)
+    assert len(attempts) == 3
+    assert sleeps == [0.25, 0.5]

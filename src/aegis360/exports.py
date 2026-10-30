@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from datetime import datetime, timezone
 from io import BytesIO
 
@@ -38,6 +39,7 @@ def build_workbook(
     trend: pd.DataFrame | None = None,
     scenario: dict[str, object] | None = None,
     source: str = "Local uploaded dataset",
+    processing: dict[str, object] | None = None,
 ) -> bytes:
     """Create the supported report sections and return a bounded XLSX payload."""
     if len(data) > MAX_EXPORT_ROWS:
@@ -61,6 +63,18 @@ def build_workbook(
     scenario_frame = pd.DataFrame(
         [scenario] if scenario else [{"status": "No scenario calculated"}]
     )
+    processing_frame = pd.DataFrame(
+        [
+            {
+                "item": key,
+                "value": json.dumps(value, sort_keys=True, default=str)
+                if isinstance(value, (dict, list, tuple))
+                else value,
+            }
+            for key, value in (processing or {}).items()
+        ]
+        or [{"item": "processing", "value": "No additional processing metadata supplied"}]
+    )
     methodology = pd.DataFrame(
         {
             "Topic": [
@@ -68,6 +82,7 @@ def build_workbook(
                 "Percentage variance",
                 "Outlier review",
                 "Scenario estimate",
+                "Data preparation",
                 "Data source",
             ],
             "Definition and limitation": [
@@ -75,6 +90,7 @@ def build_workbook(
                 "Variance divided by the absolute prior value, times 100; blank when baseline is absent or zero.",
                 "Robust median/MAD threshold; a review signal, not a causal, fraud, or risk conclusion.",
                 "Baseline × (1 + analyst assumption); an assumption-based estimate, not a forecast.",
+                "Cleaning operations and counts are listed in Processing Metadata; imported rows match the exported in-memory table.",
                 source
                 + ". Values, units, and currency are supplied by the source and not inferred.",
             ],
@@ -91,6 +107,7 @@ def build_workbook(
             trend if trend is not None else pd.DataFrame({"status": ["No time series selected"]}),
         ),
         ("Scenario Analysis", scenario_frame),
+        ("Processing Metadata", processing_frame),
         ("Methodology & Sources", methodology),
         ("Imported Data", data),
     ]
@@ -112,8 +129,8 @@ def build_workbook(
             )
             ws.row_dimensions[1].height = 26
             ws.row_dimensions[2].height = 24
-            for column_number, cells in enumerate(ws.iter_cols(), start=1):
-                sample = list(cells[3 : min(ws.max_row, 253)])
+            for column_number in range(1, ws.max_column + 1):
+                sample = [ws.cell(row, column_number) for row in range(4, min(ws.max_row, 253) + 1)]
                 width = min(
                     max(max((len(str(cell.value or "")) for cell in sample), default=10) + 2, 12),
                     42,
@@ -141,7 +158,7 @@ def build_workbook(
                             end_color="D9EAD3",
                         ),
                     )
-                if any(
+                if ws.title != "Imported Data" and any(
                     token in heading
                     for token in (
                         "actual",

@@ -36,7 +36,7 @@ jobs:
           cache: pip
           cache-dependency-path: pyproject.toml
       - name: Install project and quality tools
-        run: python -m pip install -e ".[dev,parquet]"
+        run: python -m pip install -e ".[dev,parquet,auth]"
       - name: Check dependency consistency
         run: python -m pip check
       - name: Lint

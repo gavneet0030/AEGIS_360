@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import csv
 import json
+import math
 import re
+import xml.etree.ElementTree as ET
 import zipfile
 from io import BytesIO, StringIO
 from pathlib import Path
@@ -17,6 +19,7 @@ MAX_ROWS = 250_000
 MAX_COLUMNS = 200
 MAX_CELLS = 5_000_000
 MAX_XLSX_EXPANDED = 150 * 1024 * 1024
+MAX_XLSX_ENTRIES = 10_000
 MAX_PARQUET_UNCOMPRESSED = 256 * 1024 * 1024
 
 
@@ -84,36 +87,58 @@ def _parse_xlsx(content: bytes) -> pd.DataFrame:
         raise ValueError("The XLSX file is not a valid ZIP-based workbook.")
     try:
         with zipfile.ZipFile(BytesIO(content)) as archive:
-            expanded = sum(item.file_size for item in archive.infolist())
+            entries = archive.infolist()
+            if len(entries) > MAX_XLSX_ENTRIES:
+                raise ValueError(
+                    "The workbook contains too many archive entries to process safely."
+                )
+            expanded = sum(item.file_size for item in entries)
             if expanded > MAX_XLSX_EXPANDED:
                 raise ValueError("The expanded workbook exceeds the 150 MB processing limit.")
-            names = [item.filename.lower() for item in archive.infolist()]
+            names = [item.filename.lower() for item in entries]
             if any(name.endswith("vbaproject.bin") for name in names):
                 raise ValueError("Macro-enabled workbooks are not supported.")
             if "xl/workbook.xml" not in names:
                 raise ValueError("This ZIP file is not an Excel workbook.")
         from openpyxl import load_workbook
 
-        workbook = load_workbook(BytesIO(content), read_only=True, data_only=True, keep_links=False)
-        sheet = workbook.active
-        rows = sheet.iter_rows(values_only=True)
-        header = next(rows, None)
-        if not header:
-            raise ValueError("The workbook has no header row.")
-        headers = [str(value).strip() if value is not None else "" for value in header]
-        if any(not name for name in headers) or len(set(headers)) != len(headers):
-            raise ValueError("Excel column names must be present and unique.")
-        if len(headers) > MAX_COLUMNS:
-            raise ValueError(f"Files are limited to {MAX_COLUMNS} columns per upload.")
-        records = []
-        for row in rows:
-            if len(records) >= MAX_ROWS:
+        try:
+            workbook = load_workbook(
+                BytesIO(content), read_only=True, data_only=True, keep_links=False
+            )
+        except (zipfile.BadZipFile, ET.ParseError, KeyError, OSError, TypeError, ValueError) as exc:
+            raise ValueError(
+                "Could not read the Excel workbook. Check that it is not corrupted or encrypted."
+            ) from exc
+        try:
+            sheet = workbook.active
+            if sheet.max_row is not None and sheet.max_row - 1 > MAX_ROWS:
                 raise ValueError(f"Files are limited to {MAX_ROWS:,} rows per upload.")
-            if (len(records) + 1) * len(headers) > MAX_CELLS:
-                raise ValueError(f"Files are limited to {MAX_CELLS:,} data cells per upload.")
-            records.append(row[: len(headers)])
-        workbook.close()
-        return pd.DataFrame.from_records(records, columns=headers)
+            if sheet.max_column is not None and sheet.max_column > MAX_COLUMNS:
+                raise ValueError(f"Files are limited to {MAX_COLUMNS} columns per upload.")
+            rows = sheet.iter_rows(values_only=True)
+            header = next(rows, None)
+            if not header:
+                raise ValueError("The workbook has no header row.")
+            headers = [str(value).strip() if value is not None else "" for value in header]
+            if any(not name for name in headers) or len(set(headers)) != len(headers):
+                raise ValueError("Excel column names must be present and unique.")
+            if len(headers) > MAX_COLUMNS:
+                raise ValueError(f"Files are limited to {MAX_COLUMNS} columns per upload.")
+            records = []
+            for row in rows:
+                if len(records) >= MAX_ROWS:
+                    raise ValueError(f"Files are limited to {MAX_ROWS:,} rows per upload.")
+                if (len(records) + 1) * len(headers) > MAX_CELLS:
+                    raise ValueError(f"Files are limited to {MAX_CELLS:,} data cells per upload.")
+                if any(value is not None for value in row[len(headers) :]):
+                    raise ValueError("Excel data rows contain values beyond the header columns.")
+                records.append(row[: len(headers)])
+            return pd.DataFrame.from_records(records, columns=headers)
+        except (ET.ParseError, zipfile.BadZipFile, KeyError, OSError, TypeError) as exc:
+            raise ValueError("Could not parse the Excel workbook safely.") from exc
+        finally:
+            workbook.close()
     except zipfile.BadZipFile as exc:
         raise ValueError("The XLSX archive is malformed.") from exc
     except (KeyError, OSError) as exc:
@@ -131,6 +156,16 @@ def _reject_duplicate_json_keys(pairs: list[tuple[str, object]]) -> dict[str, ob
     return result
 
 
+def _reject_json_constant(value: str) -> None:
+    raise ValueError(f"JSON must not contain non-finite numeric constant {value}.")
+
+
+def _is_json_scalar(value: object) -> bool:
+    if isinstance(value, float):
+        return math.isfinite(value)
+    return value is None or isinstance(value, (str, int, bool))
+
+
 def _parse_json(content: bytes) -> pd.DataFrame:
     try:
         text = content.decode("utf-8-sig")
@@ -138,10 +173,18 @@ def _parse_json(content: bytes) -> pd.DataFrame:
         raise ValueError("JSON must use UTF-8 encoding.") from exc
     try:
         try:
-            payload = json.loads(text, object_pairs_hook=_reject_duplicate_json_keys)
+            payload = json.loads(
+                text,
+                object_pairs_hook=_reject_duplicate_json_keys,
+                parse_constant=_reject_json_constant,
+            )
         except json.JSONDecodeError:
             records = [
-                json.loads(line, object_pairs_hook=_reject_duplicate_json_keys)
+                json.loads(
+                    line,
+                    object_pairs_hook=_reject_duplicate_json_keys,
+                    parse_constant=_reject_json_constant,
+                )
                 for line in text.splitlines()
                 if line.strip()
             ]
@@ -155,6 +198,10 @@ def _parse_json(content: bytes) -> pd.DataFrame:
         if isinstance(payload, list):
             if not all(isinstance(row, dict) for row in payload):
                 raise ValueError("JSON arrays must contain objects with consistent fields.")
+            if not all(all(_is_json_scalar(value) for value in row.values()) for row in payload):
+                raise ValueError(
+                    "JSON values must be finite scalars; nested objects and arrays are not supported."
+                )
             if len(payload) > MAX_ROWS:
                 raise ValueError(f"Files are limited to {MAX_ROWS:,} rows per upload.")
             columns = {key for row in payload for key in row}
@@ -168,6 +215,10 @@ def _parse_json(content: bytes) -> pd.DataFrame:
                 raise ValueError("JSON dataset exceeds the configured column or cell limit.")
             if not all(isinstance(value, list) for value in payload.values()):
                 raise ValueError("Column-oriented JSON must map each field to a list of values.")
+            if not all(_is_json_scalar(cell) for values in payload.values() for cell in values):
+                raise ValueError(
+                    "JSON values must be finite scalars; nested objects and arrays are not supported."
+                )
             row_count = max((len(value) for value in payload.values()), default=0)
             if row_count > MAX_ROWS or row_count * len(payload) > MAX_CELLS:
                 raise ValueError("JSON dataset exceeds the configured row or cell limit.")
@@ -175,11 +226,13 @@ def _parse_json(content: bytes) -> pd.DataFrame:
         raise ValueError(
             "JSON must be an array of objects, a column-oriented object, or JSON Lines."
         )
-    except (json.JSONDecodeError, ValueError, TypeError) as exc:
+    except (json.JSONDecodeError, ValueError, TypeError, RecursionError) as exc:
         if isinstance(exc, ValueError) and str(exc).startswith(
             ("JSON", "Files", "The JSON", "JSON object")
         ):
             raise
+        if isinstance(exc, RecursionError):
+            raise ValueError("JSON nesting exceeds the safe parsing limit.") from exc
         raise ValueError(f"Could not parse JSON: {exc}") from exc
 
 

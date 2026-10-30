@@ -4,7 +4,7 @@ services:
     image: aegis360:local
     restart: unless-stopped
     ports:
-      - "8501:8501"
+      - "127.0.0.1:8501:8501"
     environment:
       AEGIS_ENV: production
       AEGIS_LOG_LEVEL: INFO

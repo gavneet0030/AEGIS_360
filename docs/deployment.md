@@ -22,6 +22,12 @@ Verify `http://localhost:8501/_stcore/health` returns `ok` and `http://localhost
 5. Verify sign-in, sample dashboard, upload limits, report download, and restart persistence in the Render dashboard.
 6. Add a managed identity-aware access proxy and custom domain/TLS policy before confidential or organizational use.
 
+## Optional Streamlit OIDC
+
+Streamlit supports OIDC using `st.login()` and requires the `auth` extra (`Authlib`). Before using it, register the exact HTTPS app URL plus `/oauth2callback` with your provider and create a secrets TOML file using [.streamlit/secrets.toml.example](../.streamlit/secrets.toml.example). Do not commit the real file. On Render, upload it under **Environment → Secret Files**; Render makes Docker service secret files available under `/etc/secrets/<filename>`. Set `AEGIS_STREAMLIT_SECRETS_FILE` to that path, `AEGIS_AUTH_MODE=oidc`, and one or more approved exact emails/domains. The entrypoint copies the file into the temporary `HOME` so the read-only application root remains unchanged.
+
+The app rejects logins without an `email_verified` claim or whose email does not match the explicit allowlist. Configure MFA and user lifecycle policy in the identity provider. This app has no roles or per-user data-history filtering. Streamlit's documented identity cookie has a 30-day expiry; logout from one session does not close other already-open sessions. Verify the actual provider claims, callback, redirect, logout, concurrent sessions, and access revocation before allowing organizational data. See [Streamlit OIDC docs](https://docs.streamlit.io/develop/api-reference/user/st.login) and [Render secret file docs](https://render.com/docs/configure-environment-variables).
+
 The Blueprint uses a persistent disk for the operational SQLite database. Render documents persistent disks as paid-service storage, single-instance, and incompatible with zero-downtime deploys; plan capacity and downtime accordingly. The source records themselves are not persisted.
 
 ## Environment

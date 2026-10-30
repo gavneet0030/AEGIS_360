@@ -7,6 +7,8 @@ import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
+MAX_RETAINED_RUNS = 10_000
+
 
 def _connect(path: Path) -> sqlite3.Connection:
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -52,6 +54,12 @@ def record_run(
                 int(duration_ms),
                 error_type,
             ),
+        )
+        connection.execute(
+            "DELETE FROM ingestion_runs WHERE rowid IN ("
+            "SELECT rowid FROM ingestion_runs ORDER BY created_at DESC, rowid DESC "
+            "LIMIT -1 OFFSET ?)",
+            (MAX_RETAINED_RUNS,),
         )
     return job_id
 

@@ -4,15 +4,18 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import json
 import logging
 import sqlite3
 import time
-from pathlib import Path
+from collections.abc import Mapping
 from datetime import datetime, timezone
+from pathlib import Path
 
 import pandas as pd
 import plotly.express as px
 import streamlit as st
+from streamlit.errors import StreamlitSecretNotFoundError
 
 from aegis360.analytics import (
     anomaly_table,
@@ -26,6 +29,7 @@ from aegis360.analytics import (
     trend_table,
     variance_table,
 )
+from aegis360.auth import email_is_allowed
 from aegis360.exports import build_workbook
 from aegis360.ingestion import load_table, safe_upload_name
 from aegis360.logging_config import configure_logging
@@ -56,10 +60,55 @@ configure_logging(SETTINGS.log_level)
 
 
 def _authenticate() -> None:
-    """Optional shared-password gate; deployment still requires a proper identity proxy."""
+    """Enforce the selected local password or OIDC identity and allowlist gate."""
+    if SETTINGS.auth_mode == "oidc":
+        required = {
+            "redirect_uri",
+            "cookie_secret",
+            "client_id",
+            "client_secret",
+            "server_metadata_url",
+        }
+        try:
+            auth_config = st.secrets.get("auth", {})
+        except StreamlitSecretNotFoundError:
+            auth_config = {}
+        if not isinstance(auth_config, Mapping):
+            auth_config = {}
+        missing = sorted(key for key in required if not auth_config.get(key))
+        if missing:
+            st.error(
+                "OIDC sign-in is selected, but Streamlit authentication settings are missing: "
+                + ", ".join(missing)
+            )
+            st.stop()
+        if not st.user.is_logged_in:
+            st.title("AEGIS 360 sign in")
+            st.button("Continue with your identity provider", on_click=st.login, type="primary")
+            st.stop()
+        if not st.user.get("email_verified", False):
+            st.error("The identity provider did not assert a verified email address.")
+            st.button("Sign out", on_click=st.logout)
+            st.stop()
+        if not email_is_allowed(
+            st.user.get("email", ""),
+            SETTINGS.oidc_allowed_domains,
+            SETTINGS.oidc_allowed_emails,
+        ):
+            st.error("This identity is not on the AEGIS 360 access allowlist.")
+            st.button("Sign out", on_click=st.logout)
+            st.stop()
+        if st.sidebar.button("Sign out"):
+            st.logout()
+        st.sidebar.caption("Signed in through the configured identity provider.")
+        return
+
     if not SETTINGS.access_password:
         return
     if st.session_state.get("authenticated"):
+        if st.sidebar.button("Sign out"):
+            st.session_state["authenticated"] = False
+            st.rerun()
         return
     st.title("AEGIS 360 sign in")
     password = st.text_input("Access password", type="password")
@@ -131,9 +180,15 @@ with st.sidebar:
             )
             wb_submitted = st.form_submit_button("Fetch public data")
         if wb_submitted:
+            started = time.perf_counter()
+            st.session_state.pop("world_bank_request_key", None)
+            st.session_state.pop("world_bank_data", None)
             try:
                 result = fetch_indicator(wb_country, wb_indicator, int(wb_start), int(wb_end))
                 st.session_state["world_bank_data"] = result
+                st.session_state["world_bank_duration_ms"] = round(
+                    (time.perf_counter() - started) * 1000
+                )
                 st.session_state["world_bank_request_key"] = (
                     wb_country,
                     wb_indicator,
@@ -142,6 +197,27 @@ with st.sidebar:
                 )
                 st.success(f"Fetched {len(result):,} observations from World Bank API v2.")
             except ValueError as exc:
+                query_hash = hashlib.sha256(
+                    f"{wb_country}|{wb_indicator}|{int(wb_start)}|{int(wb_end)}".encode()
+                ).hexdigest()
+                if st.session_state.get("last_failed_hash") != query_hash:
+                    duration_ms = round((time.perf_counter() - started) * 1000)
+                    job_id = _save_run_metadata(
+                        status="failed",
+                        sha256=query_hash,
+                        duration_ms=duration_ms,
+                        error_type=type(exc).__name__,
+                    )
+                    LOGGER.warning(
+                        "public_source_fetch_failed",
+                        extra={
+                            "job_id": job_id,
+                            "status": "failed",
+                            "duration_ms": duration_ms,
+                            "error_type": type(exc).__name__,
+                        },
+                    )
+                    st.session_state["last_failed_hash"] = query_hash
                 st.error(f"World Bank request failed: {exc}")
     st.divider()
     st.caption(
@@ -164,11 +240,12 @@ elif data_source == "Upload a file":
         duration_ms = round((time.perf_counter() - started) * 1000)
         source_label = f"{safe_upload_name(uploaded.name)} · session only"
     except Exception as exc:
+        duration_ms = round((time.perf_counter() - started) * 1000)
         if st.session_state.get("last_failed_hash") != upload_hash:
             job_id = _save_run_metadata(
                 status="failed",
                 sha256=upload_hash,
-                duration_ms=0,
+                duration_ms=duration_ms,
                 error_type=type(exc).__name__,
             )
             LOGGER.warning(
@@ -212,7 +289,7 @@ else:
         st.stop()
     raw_data = st.session_state["world_bank_data"].copy()
     upload_hash = hashlib.sha256(
-        pd.util.hash_pandas_object(raw_data, index=True).values.tobytes()
+        raw_data.to_json(orient="split", date_format="iso", double_precision=15).encode("utf-8")
     ).hexdigest()
     retrieved = raw_data.attrs.get("retrieved_at_utc", "retrieval time unavailable")
     source_label = (
@@ -225,7 +302,7 @@ else:
             sha256=upload_hash,
             rows=len(raw_data),
             columns=len(raw_data.columns),
-            duration_ms=0,
+            duration_ms=st.session_state.get("world_bank_duration_ms", 0),
         )
         if job_id:
             LOGGER.info(
@@ -235,6 +312,7 @@ else:
                     "status": "succeeded",
                     "rows": len(raw_data),
                     "columns": len(raw_data.columns),
+                    "duration_ms": st.session_state.get("world_bank_duration_ms", 0),
                 },
             )
         st.session_state["last_recorded_hash"] = upload_hash
@@ -242,9 +320,10 @@ else:
 if st.session_state.get("cleaned_hash") != upload_hash:
     st.session_state.pop("cleaned_data", None)
     st.session_state.pop("cleaning_changes", None)
+    st.session_state.pop("cleaning_parameters", None)
+    st.session_state.pop("report_bytes", None)
     st.session_state["cleaned_hash"] = upload_hash
 
-profile_original = profile_dataset(raw_data)
 use_cleaned = False
 if "cleaned_data" in st.session_state:
     use_cleaned = st.sidebar.toggle(
@@ -268,6 +347,8 @@ number_candidates = [
 ]
 date_column = None
 dimension = None
+active_date_range = None
+selected_dimension_values: list[str] = []
 
 with st.sidebar:
     st.success(f"{len(data):,} rows · {len(data.columns)} columns")
@@ -313,15 +394,22 @@ else:
 
 analysis_data = data.copy()
 if date_column:
-    parsed_dates = pd.to_datetime(analysis_data[date_column], errors="coerce")
+    parsed_dates = pd.to_datetime(analysis_data[date_column], errors="coerce", utc=True)
     valid_dates = parsed_dates.dropna()
     if not valid_dates.empty:
-        date_range = st.slider(
-            "Date range",
-            min_value=valid_dates.min().date(),
-            max_value=valid_dates.max().date(),
-            value=(valid_dates.min().date(), valid_dates.max().date()),
+        min_date = valid_dates.min().date()
+        max_date = valid_dates.max().date()
+        date_range = (
+            st.slider(
+                "Date range",
+                min_value=min_date,
+                max_value=max_date,
+                value=(min_date, max_date),
+            )
+            if min_date < max_date
+            else (min_date, max_date)
         )
+        active_date_range = (str(date_range[0]), str(date_range[1]))
         keep = parsed_dates.dt.date.between(date_range[0], date_range[1])
         analysis_data = analysis_data.loc[keep].copy()
     else:
@@ -330,8 +418,10 @@ if date_column:
         )
 if dimension:
     options = sorted(analysis_data[dimension].dropna().astype(str).unique().tolist())
-    selected_values = st.multiselect(f"Filter {dimension}", options, default=options)
-    analysis_data = analysis_data[analysis_data[dimension].astype(str).isin(selected_values)]
+    selected_dimension_values = st.multiselect(f"Filter {dimension}", options, default=options)
+    analysis_data = analysis_data[
+        analysis_data[dimension].astype(str).isin(selected_dimension_values)
+    ]
 
 tabs = st.tabs(
     [
@@ -348,6 +438,7 @@ tabs = st.tabs(
 variance = pd.DataFrame()
 trend = pd.DataFrame()
 scenario = None
+scenario_change_pct = None
 if measure is not None:
     variance = variance_table(analysis_data, measure, date_column, dimension)
     if date_column:
@@ -438,6 +529,10 @@ with tabs[1]:
         )
         st.session_state["cleaned_data"] = cleaned
         st.session_state["cleaning_changes"] = changes
+        st.session_state["cleaning_parameters"] = {
+            "remove_exact_duplicates": bool(drop_duplicates),
+            "missing_value_strategy": missing_strategy,
+        }
         st.session_state["cleaned_hash"] = upload_hash
         st.rerun()
     if "cleaned_data" in st.session_state:
@@ -497,29 +592,60 @@ with tabs[4]:
             "Forecast horizon (periods)", min_value=1, max_value=12, value=3
         )
         period_series = trend.groupby("period")[measure].sum(min_count=1).sort_index()
-        try:
-            forecast, evaluation = forecast_baseline(period_series, horizon=forecast_horizon)
+        finite_periods = (
+            pd.to_numeric(period_series, errors="coerce")
+            .replace([float("inf"), float("-inf")], float("nan"))
+            .dropna()
+        )
+        if finite_periods.empty:
+            st.info("No finite monthly values are available for forecasting or scenario analysis.")
+        else:
+            try:
+                forecast, evaluation = forecast_baseline(finite_periods, horizon=forecast_horizon)
+                st.caption(
+                    f"Model: {evaluation['model']} · observations: {evaluation['observations']} · holdout MAE: {evaluation['holdout_mae']:,.2f}"
+                    if pd.notna(evaluation["holdout_mae"])
+                    else f"Model: {evaluation['model']} · not enough data for a holdout evaluation."
+                )
+                st.dataframe(forecast, width="stretch", hide_index=True)
+            except ValueError as exc:
+                st.info(str(exc))
             st.caption(
-                f"Model: {evaluation['model']} · observations: {evaluation['observations']} · holdout MAE: {evaluation['holdout_mae']:,.2f}"
-                if pd.notna(evaluation["holdout_mae"])
-                else f"Model: {evaluation['model']} · not enough data for a holdout evaluation."
+                "Forecast steps follow observed monthly records. Missing calendar months are not imputed."
             )
-            st.dataframe(forecast, width="stretch", hide_index=True)
-        except ValueError as exc:
-            st.info(str(exc))
-        baseline = float(period_series.iloc[-1])
-        change_pct = st.slider(
-            "Scenario assumption: change from latest period",
-            min_value=-100,
-            max_value=100,
-            value=0,
-            step=5,
-        )
-        scenario = scenario_analysis(baseline, float(change_pct))
-        st.metric(
-            "Scenario estimate", f"{scenario['estimate']:,.2f}", delta=f"{scenario['change']:,.2f}"
-        )
-        st.warning("Analyst-defined assumption. This is not a forecast or guaranteed outcome.")
+            baseline = float(finite_periods.iloc[-1])
+            change_pct = st.slider(
+                "Scenario assumption: change from latest period",
+                min_value=-100,
+                max_value=100,
+                value=0,
+                step=5,
+            )
+            scenario_change_pct = float(change_pct)
+            scenario = scenario_analysis(baseline, float(change_pct))
+            st.metric(
+                "Scenario estimate",
+                f"{scenario['estimate']:,.2f}",
+                delta=f"{scenario['change']:,.2f}",
+            )
+            st.warning("Analyst-defined assumption. This is not a forecast or guaranteed outcome.")
+
+report_context = {
+    "source_sha256": upload_hash,
+    "cleaned_data": bool(use_cleaned),
+    "measure": measure,
+    "date_column": date_column,
+    "date_range": active_date_range,
+    "dimension": dimension,
+    "dimension_values": selected_dimension_values,
+    "scenario_change_pct": scenario_change_pct,
+}
+report_context_hash = hashlib.sha256(
+    json.dumps(report_context, sort_keys=True, default=str).encode("utf-8")
+).hexdigest()
+if st.session_state.get("report_context_hash") != report_context_hash:
+    st.session_state.pop("report_bytes", None)
+    st.session_state["report_context_hash"] = report_context_hash
 
 with tabs[5]:
     st.subheader("Excel and report exports")
@@ -528,7 +654,22 @@ with tabs[5]:
     )
     if st.button("Generate analyst workbook", type="primary"):
         try:
-            report = build_workbook(data, quality, variance, trend, scenario, source_label)
+            cleaning_applied = use_cleaned and st.session_state.get("cleaned_hash") == upload_hash
+            processing = {
+                "source_sha256": upload_hash,
+                "input_rows": len(raw_data),
+                "exported_rows": len(data),
+                "cleaning_applied": cleaning_applied,
+                "cleaning_parameters": (
+                    st.session_state.get("cleaning_parameters", {}) if cleaning_applied else "none"
+                ),
+                "cleaning_changes": (
+                    st.session_state.get("cleaning_changes", {}) if cleaning_applied else {}
+                ),
+            }
+            report = build_workbook(
+                data, quality, variance, trend, scenario, source_label, processing=processing
+            )
             st.session_state["report_bytes"] = report
             st.success(f"Workbook generated: {len(report) / 1024:,.0f} KB")
         except (ValueError, OSError) as exc:
@@ -586,5 +727,5 @@ with tabs[6]:
 
 st.divider()
 st.caption(
-    "AEGIS 360 · local-first analytics · no external AI or network data source is used by this MVP."
+    "AEGIS 360 · local-first analytics · no external AI; World Bank data is fetched only on explicit request."
 )

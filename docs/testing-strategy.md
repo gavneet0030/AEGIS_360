@@ -12,7 +12,7 @@ python -m pytest -q
 python -m pip_audit --progress-spinner off
 ```
 
-The suite uses small deterministic DataFrames and in-memory CSV, XLSX, JSON, Parquet, and workbook payloads. SQLite tests use a temporary directory under the project because the managed Windows test environment restricts the system temp directory.
+The suite uses small deterministic DataFrames and in-memory CSV, XLSX, JSON, Parquet, and workbook payloads. Pytest uses an ignored `.pytest-tmp` directory under the project because the managed Windows test environment restricts its system temp directory. The regression suite also runs a Streamlit AppTest through initial dashboard render and report generation, plus an OIDC missing-configuration fail-closed check.
 
 ## CI
 

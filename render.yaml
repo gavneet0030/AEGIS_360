@@ -9,6 +9,8 @@ services:
     envVars:
       - key: AEGIS_ENV
         value: production
+      - key: AEGIS_AUTH_MODE
+        value: password
       - key: AEGIS_LOG_LEVEL
         value: INFO
       - key: AEGIS_DATA_DIR

@@ -11,7 +11,7 @@ AEGIS 360 is a local-first analyst workbench for validating tabular data, profil
 - Profile types, missing cells, uniqueness, numeric distributions, and exact duplicates.
 - Preview explicit duplicate and missing-value cleaning strategies before using cleaned rows.
 - Calculate descriptive statistics, category summaries, monthly trends, period variance, Pearson correlations, robust outlier review flags, naive/seasonal-naive forecasts with holdout MAE, and analyst-defined scenarios.
-- Export a bounded workbook with an executive summary, KPI summary, dataset profile, quality details, variance, trend, scenario, methodology, and imported values.
+- Export a bounded workbook with an executive summary, KPI summary, dataset profile, quality details, variance, trend, scenario, processing metadata/fingerprint, methodology, and imported values.
 - Record SQLite ingestion metadata and SHA-256 fingerprints without persisting source files or source rows.
 - Fetch one country and one indicator from the World Bank Indicators API v2 on explicit user request; response size, retries, timeout, year range, and observation count are bounded.
 - Run without an AI provider or external data connection.
@@ -26,7 +26,7 @@ Use Python 3.12 or 3.13. From this project folder in PowerShell:
 py -3.13 -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install --upgrade pip
-python -m pip install -e '.[dev,parquet]'
+python -m pip install -e '.[dev,parquet,auth]'
 python scripts\generate_demo_data.py
 python -m scripts.doctor
 python -m streamlit run src\aegis360\dashboard.py --server.maxUploadSize=25
@@ -46,7 +46,11 @@ Copy `.env.example` to `.env` only for tools that load dotenv files; the applica
 | `AEGIS_LOG_LEVEL` | `INFO` | Standard Python log level; structured logs omit dataset values |
 | `AEGIS_DATA_DIR` | `data/runtime` | Directory containing SQLite metadata |
 | `AEGIS_MAX_UPLOAD_MB` | `25` | Upload limit; accepted range is 1–25 MB |
-| `AEGIS_ACCESS_PASSWORD` | unset | Optional local gate; required in production mode |
+| `AEGIS_AUTH_MODE` | `password` | `password` for a restricted prototype or `oidc` for identity-provider sign-in |
+| `AEGIS_ACCESS_PASSWORD` | unset | Password-mode gate; required in production password mode |
+| `AEGIS_OIDC_ALLOWED_DOMAINS` | unset | Comma-separated email domains authorized in OIDC mode |
+| `AEGIS_OIDC_ALLOWED_EMAILS` | unset | Comma-separated exact email addresses authorized in OIDC mode |
+| `AEGIS_STREAMLIT_SECRETS_FILE` | unset | Optional mounted TOML file copied to Streamlit's user secrets path at container start |
 
 ## Tests and quality checks
 
@@ -67,13 +71,15 @@ $env:AEGIS_ACCESS_PASSWORD = 'replace-with-a-unique-secret-at-least-16-chars'
 docker compose up --build
 ```
 
-The container runs as a non-root user, uses a read-only root filesystem with a temporary `/tmp`, enables Streamlit CORS/XSRF protections, and stores only its SQLite metadata in the named `aegis-data` volume. The app is available at `http://localhost:8501` for local use. Do not expose this plain HTTP Compose port directly to the internet.
+The container runs as a non-root user, uses a read-only root filesystem with a temporary `/tmp`, enables Streamlit CORS/XSRF protections, and stores only its SQLite metadata in the named `aegis-data` volume. Compose binds to loopback at `http://localhost:8501`; do not expose this plain HTTP port directly to the internet.
 
 ## Render deployment preparation
 
 `render.yaml` defines a Docker web service, the Streamlit health-check path, a generated access secret, a 25 MB upload cap, and a persistent disk for the metadata database. Render Blueprints support generated secrets and persistent disks; attached disks are available to paid web services and make the service single-instance with downtime during deploys ([Blueprint reference](https://render.com/docs/blueprint-spec), [disk behavior](https://render.com/docs/disks)).
 
-To deploy, connect the verified GitHub repository to Render, create a Blueprint from `render.yaml`, review the generated secret and service plan, then verify health and logs in the Render dashboard. This workspace has not created or checked a Render service. The current simple password gate is only a temporary barrier; add a managed identity-aware access layer before allowing confidential company data.
+To deploy, connect the verified GitHub repository to Render, create a Blueprint from `render.yaml`, review the generated secret and service plan, then verify health and logs in the Render dashboard. This workspace has not created or checked a Render service. Password mode is only a temporary barrier; configure and verify the optional OIDC path and access allowlist before allowing confidential company data.
+
+For OIDC, install the `auth` extra (included in the Docker image), register the actual app URL plus `/oauth2callback` with your provider, upload a real secrets file based on [.streamlit/secrets.toml.example](.streamlit/secrets.toml.example) through the hosting provider's secret-file facility, and set `AEGIS_AUTH_MODE=oidc` with at least one exact allowed email or domain. The container copies the mounted secret file to its temporary home with owner-only permissions. Configure the provider to enforce MFA if required. A domain allowlist is an access rule, not role-based authorization. Keep password mode until the OIDC callback, sign-in, denied-user, sign-out, and deployment flows have been verified with your actual provider.
 
 See [deployment instructions](docs/deployment.md), [operations runbook](docs/runbook.md), and [threat model](docs/threat-model.md).
 
@@ -81,11 +87,11 @@ See [deployment instructions](docs/deployment.md), [operations runbook](docs/run
 
 Uploaded source records and World Bank observations remain in Streamlit session memory only. The SQLite database stores ingestion job IDs, UTC time, status, SHA-256 content fingerprint, row/column counts, duration, and exception class. It does not store source filenames or cell values. The sample file is public project content and synthetic. Production database recovery therefore restores operational history only, not user datasets.
 
-The source catalog is [config/sources.toml](config/sources.toml). The World Bank adapter is covered by mocked-response tests; a successful live API request has not been verified from this network-restricted workspace. Source terms and future candidates are described in [source registry notes](docs/source-registry.md).
+The source catalog is [config/sources.toml](config/sources.toml). The World Bank adapter is covered by mocked-response tests and a bounded live U.S. population request for 2021–2022 returned two observations on 2026-10-30. Source terms and future candidates are described in [source registry notes](docs/source-registry.md).
 
 ## Known limitations
 
-- Shared-password login is not user identity, MFA, roles, rate-limited authentication, or audit-grade authorization.
+- Password mode is a shared gate, not user identity, MFA, roles, rate-limited authentication, or audit-grade authorization. Optional OIDC requires a real provider configuration and allowlist before it is active.
 - No AI provider, public REST API for AEGIS itself, scheduled ingestion, PDF export, or multi-user dataset storage.
 - SQLite history is local to one service instance; the Render disk configuration does not support horizontal scaling.
 - Forecasting is limited to simple naive/seasonal-naive baselines. No confidence interval is claimed.

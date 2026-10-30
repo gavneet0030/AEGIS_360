@@ -4,6 +4,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1 \
     AEGIS_ENV=production \
+    AEGIS_AUTH_MODE=password \
     AEGIS_DATA_DIR=/var/data \
     AEGIS_MAX_UPLOAD_MB=25 \
     HOME=/tmp \
@@ -12,7 +13,8 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
-RUN useradd --system --uid 10001 --create-home aegis \
+RUN (getent group 1000 >/dev/null || groupadd --gid 1000 render-secret) \
+    && useradd --system --uid 10001 --create-home --groups 1000 aegis \
     && mkdir -p /var/data \
     && chown -R aegis:aegis /app /var/data
 
@@ -22,7 +24,7 @@ COPY scripts ./scripts
 COPY config ./config
 COPY data/samples ./data/samples
 
-RUN python -m pip install --no-cache-dir .[parquet] \
+RUN python -m pip install --no-cache-dir .[parquet,auth] \
     && python -m pip check \
     && chown -R aegis:aegis /app
 

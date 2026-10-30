@@ -22,14 +22,21 @@
 | OIDC email verification and session behavior depend on the provider and Streamlit's identity cookie. | Medium | The app requires an `email_verified` claim and allowlist match. Current Streamlit documentation states the identity cookie expires after 30 days and logout does not terminate already-open sessions in other tabs. Test provider revocation and session behavior before organizational use. OIDC does not provide roles in this app. |
 | SHA-256 dataset fingerprints can link repeated files and may be guessable for low-entropy datasets. | Medium | No cell values are stored, but restrict access to the SQLite file and backups as potentially sensitive metadata. |
 | Streamlit receives uploaded bytes before application-level validation; parsing can use multiple in-memory copies. | Medium | Upload and shape limits bound inputs. Reverse-proxy limits and platform memory capacity remain necessary; see benchmark limitations. |
-| XLSX/Parquet expansion checks do not eliminate every parser/library vulnerability. | Medium | Run the dependency audit and update dependencies on findings; keep CI security checks enabled. |
+| XLSX/Parquet expansion checks do not eliminate every parser/library vulnerability. | Medium | Runtime dependency pins and the scheduled/PR audit reduce known exposure; keep CI security checks enabled and refresh the lock when dependencies change. |
 | Render web services are publicly reachable by default; a generated password does not create an identity-aware boundary. | High for confidential data | Do not deploy sensitive datasets until OIDC is configured and the public route/access policy is reviewed. No hosted service was created in this review. |
 | OIDC allowlisted users share the application-wide operational ingestion history. | Medium | The app is not a multi-tenant product and has no per-user history authorization. Restrict the allowlist to a trusted group and do not expose sensitive fingerprints or counts until this boundary is redesigned. |
 | Container build, image scan, live OIDC flow, and hosted proxy configuration could not be verified here. | Blocked | Docker Engine access and provider credentials are not available. |
 
 ## Dependency audit
 
-The audit is **not complete**. `pip-audit==2.10.1` was staged in an isolated target directory, but installing its transitive dependencies stalled and `python -m pip_audit` fails because `pip_api` is missing. No vulnerability-free claim is made. `python -m pip check` passed and confirms dependency consistency only; it is not a vulnerability audit. Retry `python -m pip install -e '.[security,parquet,auth]'` in a network-enabled Python 3.12/3.13 environment, then run `python -m pip_audit --progress-spinner off` and review the complete output before release.
+**Completed 2026-10-30:** `pip-audit 2.10.1` checked all 45 pinned packages in `requirements-production.lock` against PyPI vulnerability data using `--disable-pip --no-deps`. An initial direct scan found six advisory records for Streamlit 1.51.0 and PyArrow 21.0.0. A subsequent 46-package graph scan found 105 advisory records across AnyIO 4.10.0, Certifi 2026.5.20, Cryptography 46.0.3, IDNA 3.11, Pillow 12.0.0, and urllib3 2.5.0; the source data included duplicate alias records. The project now pins Streamlit 1.66.1, PyArrow 26.0.0, AnyIO 4.14.2, Certifi 2026.10.19, Cryptography 50.0.0, IDNA 3.15, Pillow 13.0.0, and urllib3 2.8.0. The final scan reported **no known vulnerabilities** in the 45-package runtime graph. The lock pins versions but does not include artifact hashes; CI and the Docker build apply those constraints. Reaudit on every lock update and scheduled CI run.
+
+Reproduce the runtime audit after installing the project security extra:
+
+```powershell
+python -m pip install -c requirements-production.lock -e ".[security,parquet,auth]"
+python -m pip_audit -r requirements-production.lock --disable-pip --no-deps --progress-spinner off
+```
 
 ## Review boundary
 

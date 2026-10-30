@@ -16,7 +16,7 @@
 
 ## Runtime configuration
 
-The supported settings are listed in the project README and `.env.example`. Production password mode requires a 16-character password. Production OIDC mode requires an allowlist and a Streamlit `[auth]` secrets file. The container entrypoint can read a mounted secret file and copies it to a temporary home with owner-only permissions. Never commit the actual `secrets.toml`.
+The supported settings are listed in the project README and `.env.example`. Production password mode requires a 16-character password. Production OIDC mode requires an allowlist and a Streamlit `[auth]` secrets file. The container entrypoint can read a mounted secret file and copies it to a temporary home with owner-only permissions. Runtime versions are constrained by `requirements-production.lock`; refresh that lock and rerun the audit when dependencies change. Never commit the actual `secrets.toml`.
 
 ## Test and verification evidence
 
@@ -30,7 +30,7 @@ python -m ruff check .
 python -m ruff format --check .
 python -m pytest -q
 python -m scripts.doctor
-python -m pip_audit --progress-spinner off
+python -m pip_audit -r requirements-production.lock --disable-pip --no-deps --progress-spinner off
 python -m scripts.benchmark_workloads
 ```
 

@@ -19,12 +19,13 @@ RUN (getent group 1000 >/dev/null || groupadd --gid 1000 render-secret) \
     && chown -R aegis:aegis /app /var/data
 
 COPY pyproject.toml README.md ./
+COPY requirements-production.lock ./
 COPY src ./src
 COPY scripts ./scripts
 COPY config ./config
 COPY data/samples ./data/samples
 
-RUN python -m pip install --no-cache-dir .[parquet,auth] \
+RUN python -m pip install --no-cache-dir -c requirements-production.lock ".[parquet,auth]" \
     && python -m pip check \
     && chown -R aegis:aegis /app
 

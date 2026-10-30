@@ -8,7 +8,7 @@ From the project root in PowerShell:
 py -3.13 -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install --upgrade pip
-python -m pip install -e ".[dev,parquet,auth]"
+python -m pip install -c requirements-production.lock -e ".[dev,parquet,auth]"
 python scripts\generate_demo_data.py
 python -m scripts.doctor
 python -m streamlit run src\aegis360\dashboard.py --server.maxUploadSize=25

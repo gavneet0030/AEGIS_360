@@ -24,6 +24,7 @@ def build_command(environment: dict[str, str] | None = None) -> list[str]:
         "--server.address=0.0.0.0",
         f"--server.port={port}",
         f"--server.maxUploadSize={upload_mb}",
+        "--global.developmentMode=false",
         "--server.enableCORS=true",
         "--server.enableXsrfProtection=true",
         "--browser.gatherUsageStats=false",

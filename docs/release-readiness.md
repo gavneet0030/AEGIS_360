@@ -12,14 +12,14 @@ Track the verified local test suite, lint/format checks, dependency audit, docto
 
 | # | Criterion | Status | Evidence / remaining work |
 |---:|---|---|---|
-| 1 | Documented application features work | PARTIAL | 42 automated tests pass and local Streamlit health/root return 200; production-user workflow and OIDC require live-provider verification. |
-| 2 | Complete regression suite passes | PASS | `python -m pytest -q`: 42 passed. |
+| 1 | Documented application features work | PARTIAL | 42 tests pass on Streamlit 1.66.1 and PyArrow 26.0.0; local Streamlit health/root return 200. Production-user workflow and OIDC still require live-provider verification. |
+| 2 | Complete regression suite passes | PASS | `python -m pytest -q` with the production package overlay: 42 passed in 139.90 seconds. |
 | 3 | Lint and formatting pass | PASS | `ruff check .` and `ruff format --check .` pass after formatting all tracked/new Python files. |
-| 4 | Dependency audit completed and findings reviewed | BLOCKED | `pip-audit==2.10.1` wheel installed without dependencies, but its transitive dependency download stalled; execution fails on missing `pip_api`. `pip check` passes but is not a vulnerability audit. |
+| 4 | Dependency audit completed and findings reviewed | PASS | The first direct scan found six advisory records across Streamlit and PyArrow; the expanded scan found 105 more across six transitive packages. Eight runtime package versions were upgraded; the final 45-package pinned audit reported no known vulnerabilities. See [security review](security-review.md). |
 | 5 | Upload security is tested | PARTIAL | Parser tests cover sizes, signatures, duplicates, malformed inputs, and formats; production proxy/resource-limit behavior is not exercised. |
 | 6 | Export security is tested | PASS | Workbook values/layout and formula-like cell/header escaping are asserted. |
 | 7 | Container image actually built and tested | BLOCKED | Docker Engine named pipe is inaccessible in the current session. |
-| 8 | Health checks work | PARTIAL | Local Streamlit `/_stcore/health` returned HTTP 200 and Compose config parses; container health remains unverified because Docker Engine is unavailable. |
+| 8 | Health checks work | PARTIAL | Streamlit 1.66.1 local `/_stcore/health` returned HTTP 200 and Compose config parses; container health remains unverified because Docker Engine is unavailable. |
 | 9 | CI is green | BLOCKED | Workflow files are configured; no authenticated remote branch/PR is available to trigger and inspect CI. |
 | 10 | GitHub release is synchronized | BLOCKED | GitHub connector denied branch creation and local Git has no credentials. No push, PR, merge, or tag was made. |
 | 11 | External data integration is verified | PASS | Mocked adapter suite passes; bounded live World Bank request returned U.S. population values for 2021–2022. |
@@ -29,13 +29,13 @@ Track the verified local test suite, lint/format checks, dependency audit, docto
 
 ## Current local verification
 
-- Test suite: `python -m pytest -q` — 42 passed.
+- Test suite: `python -m pytest -q` with the pinned production overlay — 42 passed in 139.90 seconds.
 - Ruff lint/format: pass.
 - `pip check` and `python -m scripts.doctor`: pass.
-- `pip-audit`: blocked because its transitive tool dependencies could not be downloaded in this session.
+- `pip-audit`: pass on all 45 pinned runtime packages; no known vulnerabilities after upgrading eight affected packages.
 - Synthetic benchmark: 1k/10k/100k results are in [performance benchmarks](performance-benchmarks.md); the 100k workbook export took 65.4 seconds.
 - TOML/YAML parse and `docker compose config --quiet`: pass.
-- Local Streamlit `/_stcore/health` and `/`: HTTP 200.
+- Local Streamlit 1.66.1 with production development mode disabled: `/_stcore/health` and `/` returned HTTP 200.
 - Live World Bank result: two U.S. population observations for 2021 and 2022.
 - Docker image/runtime: not verified; engine access denied.
 - GitHub: remote `main` contains the initial license commit; no write credential is available in this session.

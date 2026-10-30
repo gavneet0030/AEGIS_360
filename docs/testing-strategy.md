@@ -16,7 +16,7 @@ The suite uses small deterministic DataFrames and in-memory CSV, XLSX, JSON, Par
 
 ## CI
 
-`.github/workflows/ci.yml` tests Python 3.12 on Ubuntu and Python 3.12/3.13 on Windows. A separate Ubuntu job builds the image and checks the Streamlit health route. `.github/workflows/security.yml` runs `pip-audit` on pull requests and weekly. Dependabot checks Python and Actions dependencies.
+`.github/workflows/ci.yml` tests Python 3.12 on Ubuntu and Python 3.12/3.13 on Windows. CI installs the pinned production graph in `requirements-production.lock` as constraints. A separate Ubuntu job builds the image and checks the Streamlit health route. `.github/workflows/security.yml` audits the exact pinned production graph with `pip-audit` on pull requests and weekly. Dependabot checks Python and Actions dependencies.
 
 ## Limits
 

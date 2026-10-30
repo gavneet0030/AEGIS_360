@@ -92,6 +92,7 @@ def test_container_entrypoint_uses_exec_arguments_and_rejects_shell_input():
     command = build_command({"PORT": "10000", "AEGIS_MAX_UPLOAD_MB": "10"})
     assert "--server.port=10000" in command
     assert "--server.maxUploadSize=10" in command
+    assert "--global.developmentMode=false" in command
     with pytest.raises(ValueError, match="PORT"):
         build_command({"PORT": "8501;echo bad", "AEGIS_MAX_UPLOAD_MB": "25"})
     with pytest.raises(ValueError, match="AEGIS_MAX_UPLOAD_MB"):

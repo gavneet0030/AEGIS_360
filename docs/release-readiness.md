@@ -12,7 +12,7 @@
 
 ## Release decision
 
-The local application has a passing 42-test regression suite, lint and format checks, a clean 45-package runtime vulnerability audit, and a successful local Streamlit health check. The project is **not approved as a live production release**: no release branch or pull request could be created, Docker Engine was inaccessible, no real OIDC provider was configured, and no Render service was connected or deployed. Do not use the shared-password mode for confidential organizational data or treat this build as security-certified.
+The local application has a passing 42-test regression suite in the locked environment, lint and format checks, a clean 45-package runtime vulnerability audit, and a successful local Streamlit health check. A local release branch is prepared and reconciled with remote `main`, but the project is **not approved as a live production release**: no remote release branch or pull request could be created, Docker Engine was inaccessible, no real OIDC provider was configured, and no Render service was connected or deployed. Do not use the shared-password mode for confidential organizational data or treat this build as security-certified.
 
 ## Final acceptance table
 
@@ -20,9 +20,9 @@ The local application has a passing 42-test regression suite, lint and format ch
 |---|---|---|
 | Project root, branch, commit, and worktree inspected | PASS | Root is `outputs/AEGIS_360`; release branch `codex/phase-3-final-release`; source baseline `9d5aee0`; reconciliation merge `f8a0fd4`. The branch merges cleanly and preserves both histories. |
 | GitHub repository and remote inspected | PASS | Remote points to the requested repository. Read-only fetch/`ls-remote` succeeds using the per-command OpenSSL transport override; remote `main` is `1a99a87513f330002bc0f7200c23b28865106178`. The remote MIT license is unchanged in the local candidate. |
-| GitHub CLI authentication | BLOCKED | `gh auth status` reports no logged-in host. Default Schannel transport fails with `SEC_E_NO_CREDENTIALS`; anonymous read access works with `git -c http.sslBackend=openssl -c credential.helper= fetch origin`. |
+| GitHub CLI authentication | BLOCKED | `gh auth status` reports no logged-in host. Two prior device codes expired before authentication; a third device flow is waiting for account-owner approval. Default Schannel transport fails with `SEC_E_NO_CREDENTIALS`; anonymous reads work with the per-command OpenSSL override. |
 | Remote release branch, pull request, and merge | BLOCKED | Local candidate is prepared, but no remote branch or PR exists. GitHub connector branch creation returned HTTP 403 `Resource not accessible by integration`; GitHub CLI has no write credentials. No remote write was made. |
-| Secret/private-data review before staging | PASS | Reviewed tracked project files and scanned the staged release-document changes for common credential/private-key patterns; zero matches. Those changes were committed locally only; no remote write was made. |
+| Secret/private-data review before staging | PASS | Reviewed tracked project files and scanned staged README, docs, source, and test changes for common credential/private-key patterns; zero matches. Changes were committed locally only; no remote write was made. |
 | Full regression suite | PASS | In the isolated Python 3.13.9 venv matching the production lock, `pytest -q` reported 42 passed in 48.37 seconds with no warnings. |
 | Production runtime lock | PASS | All 45 exact runtime pins matched installed package metadata; `pip check` found no broken requirements. |
 | Ruff lint and formatting | PASS | With Ruff 0.12.0 in the isolated venv, `ruff check .` passed and `ruff format --check .` reported 21 Python files already formatted. |

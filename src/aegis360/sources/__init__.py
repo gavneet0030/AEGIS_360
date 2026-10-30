@@ -1,0 +1,1 @@
+"""Approved external source adapters."""

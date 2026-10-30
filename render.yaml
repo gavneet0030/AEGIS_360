@@ -1,0 +1,25 @@
+services:
+  - type: web
+    name: aegis-360
+    runtime: docker
+    plan: starter
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /_stcore/health
+    envVars:
+      - key: AEGIS_ENV
+        value: production
+      - key: AEGIS_AUTH_MODE
+        value: password
+      - key: AEGIS_LOG_LEVEL
+        value: INFO
+      - key: AEGIS_DATA_DIR
+        value: /var/data
+      - key: AEGIS_MAX_UPLOAD_MB
+        value: "25"
+      - key: AEGIS_ACCESS_PASSWORD
+        generateValue: true
+    disk:
+      name: aegis-data
+      mountPath: /var/data
+      sizeGB: 1

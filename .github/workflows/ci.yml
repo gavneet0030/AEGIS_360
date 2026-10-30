@@ -1,0 +1,86 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    name: Python ${{ matrix.python-version }} on ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            python-version: "3.12"
+          - os: windows-latest
+            python-version: "3.13"
+          - os: ubuntu-latest
+            python-version: "3.12"
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-python@v7.0.0
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+          cache-dependency-path: |
+            pyproject.toml
+            requirements-production.lock
+      - name: Create isolated environment
+        run: python -m venv .venv
+      - name: Use isolated environment
+        shell: pwsh
+        run: |
+          $venvBin = if ($IsWindows) { ".venv\Scripts" } else { ".venv/bin" }
+          $resolvedVenvBin = (Resolve-Path $venvBin).Path
+          Add-Content -Path $env:GITHUB_PATH -Value $resolvedVenvBin
+      - name: Install project and quality tools
+        run: python -m pip install -c requirements-production.lock -e ".[dev,parquet,auth]"
+      - name: Check dependency consistency
+        run: python -m pip check
+      - name: Lint
+        run: python -m ruff check .
+      - name: Check formatting
+        run: python -m ruff format --check .
+      - name: Test
+        run: python -m pytest -q
+
+  container:
+    name: Container build and health smoke
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - name: Build image
+        run: docker build --tag aegis360:ci .
+      - name: Start container
+        run: >-
+          docker run --detach --name aegis360-ci -p 8501:8501
+          -e AEGIS_ENV=production
+          -e AEGIS_DATA_DIR=/var/data
+          -e AEGIS_ACCESS_PASSWORD=ci-only-long-secret-123456
+          -v aegis360-ci-data:/var/data aegis360:ci
+      - name: Wait for health endpoint
+        shell: bash
+        run: |
+          for attempt in $(seq 1 40); do
+            if curl --fail --silent http://127.0.0.1:8501/_stcore/health; then
+              exit 0
+            fi
+            sleep 2
+          done
+          docker logs aegis360-ci
+          exit 1
+      - name: Remove container
+        if: always()
+        run: docker rm --force aegis360-ci

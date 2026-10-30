@@ -37,6 +37,14 @@ jobs:
           cache-dependency-path: |
             pyproject.toml
             requirements-production.lock
+      - name: Create isolated environment
+        run: python -m venv .venv
+      - name: Use isolated environment
+        shell: pwsh
+        run: |
+          $venvBin = if ($IsWindows) { ".venv\Scripts" } else { ".venv/bin" }
+          $resolvedVenvBin = (Resolve-Path $venvBin).Path
+          Add-Content -Path $env:GITHUB_PATH -Value $resolvedVenvBin
       - name: Install project and quality tools
         run: python -m pip install -c requirements-production.lock -e ".[dev,parquet,auth]"
       - name: Check dependency consistency

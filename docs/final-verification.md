@@ -5,7 +5,7 @@
 **Branch:** `codex/phase-3-final-release`
 **Candidate commit:** `a271d4abc96cf2ba75e063e563ccda007a9304d3`
 **Repository:** [gavneet0030/AEGIS_360](https://github.com/gavneet0030/AEGIS_360)
-**Pull request:** [#1](https://github.com/gavneet0030/AEGIS_360/pull/1)
+**Merged pull request:** [#1](https://github.com/gavneet0030/AEGIS_360/pull/1)
 
 ## Acceptance results
 
@@ -13,7 +13,7 @@
 |---|---|---|
 | Local repository state | PASS | Release branch is pushed and tracks its GitHub branch; candidate head is `a271d4a`. |
 | Remote history | PASS | Remote `main` was reconciled via merge `f8a0fd4`; no force push or history replacement. |
-| Pull request | PASS | PR #1 is open from `codex/phase-3-final-release` into `main`. |
+| Pull request | PASS | PR #1 merged from `codex/phase-3-final-release` into `main`; merge commit `4c690f35d6109ced0506eed2eb00879ddb494888`. |
 | CI | PASS | Five checks green on the candidate head: Python 3.12 Windows, Python 3.13 Windows, Python 3.12 Ubuntu, pip-audit, and Docker image/health smoke. |
 | Locked production dependencies | PASS | Exact 45 package pins; `pip check` reports no broken requirements. |
 | Regression suite | PASS | **42 passed**, warning-free, in the isolated locked Python 3.13.9 environment. |

@@ -7,7 +7,7 @@
 
 ## Release decision
 
-The GitHub release candidate is pushed and PR #1 is open against `main`. All five checks passed for head `a271d4abc96cf2ba75e063e563ccda007a9304d3`: Python 3.12 Windows, Python 3.13 Windows, Python 3.12 Ubuntu, dependency audit, and container build/health smoke. The local locked-environment regression suite has 42 passing tests. This is a verified release candidate, **not a completed live production deployment**. Local Docker Engine access is denied, OIDC has no configured real provider, and Render has no connected account/service or deployment. Do not use the shared-password mode for confidential organizational data or describe this build as security-certified.
+PR #1 was merged into `main` at `4c690f35d6109ced0506eed2eb00879ddb494888`. All five checks passed for head `a271d4abc96cf2ba75e063e563ccda007a9304d3`: Python 3.12 Windows, Python 3.13 Windows, Python 3.12 Ubuntu, dependency audit, and container build/health smoke. The local locked-environment regression suite has 42 passing tests. The code release is merged; this is **not a completed live production deployment**. Local Docker Engine access is denied, OIDC has no configured real provider, and Render has no connected account/service or deployment. Do not use the shared-password mode for confidential organizational data or describe this build as security-certified.
 
 ## Final acceptance table
 
@@ -30,7 +30,7 @@ The GitHub release candidate is pushed and PR #1 is open against `main`. All fiv
 | Live OIDC authentication | BLOCKED | No real provider configuration or credentials. Keep confidential-data access blocked; do not claim live OIDC verification. |
 | Render configuration review | PASS | Existing Blueprint reviewed: Docker service, `starter` plan, 1 GB disk, health path, generated password. |
 | Render deployment and public URL | BLOCKED | No Render credential/CLI/service was available. No paid infrastructure was created and no URL is verified. |
-| Merge to main | PARTIAL | PR remains open. CI is green; merge should follow repository review/approval policy. |
+| Merge to main | PASS | PR #1 merged at `4c690f35d6109ced0506eed2eb00879ddb494888` after all five required checks passed. |
 
 ## Verified local checks
 
